@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dice Throne - Sélecteur de Personnage</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #e74c3c;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 { color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
+
+        .controls {
+            margin-bottom: 30px;
+            position: sticky;
+            top: 0;
+            background: #1a1a1a;
+            padding: 15px;
+            z-index: 100;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #c0392b;
+            transform: scale(1.05);
+        }
+
+        #search {
+            padding: 11px;
+            width: 250px;
+            border-radius: 5px;
+            border: none;
+            margin-right: 10px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .card {
+            background: #2d2d2d;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 20px rgba(231, 76, 60, 0.3);
+        }
+
+        .card.selected {
+            border-color: #f1c40f;
+            box-shadow: 0 0 30px #f1c40f;
+            transform: scale(1.1);
+            z-index: 10;
+        }
+
+        .card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-bottom: 2px solid #3d3d3d;
+        }
+
+        .card-name {
+            padding: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        #result-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .winner-img {
+            max-width: 90%;
+            max-height: 70vh;
+            border-radius: 20px;
+            border: 5px solid var(--primary);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Dice Throne Picker</h1>
+
+    <div class="controls">
+        <input type="text" id="search" placeholder="Chercher un héros..." oninput="filterHeroes()">
+        <button onclick="pickRandom()"><i class="fas fa-dice"></i> Choix Aléatoire</button>
+    </div>
+
+    <div class="grid" id="heroGrid">
+        </div>
+
+    <div id="result-overlay" onclick="this.style.display='none'">
+        <h2 style="font-size: 3em; color: #f1c40f;">LE DESTIN A CHOISI :</h2>
+        <img id="winner-img" class="winner-img" src="" alt="Vainqueur">
+        <h2 id="winner-name"></h2>
+        <p>Cliquez pour fermer</p>
+    </div>
+
+    <script>
+        // Mapping des images de ton repo vers les noms des personnages
+        const repoBase = "https://raw.githubusercontent.com/GiovanniScarpellino/dice-throne-choice/main/";
+        
+        const heroes = [
+            { name: "Barbare", img: "0F473AB0-6C6E-401F-A02A-446D10C5A630.JPG" },
+            { name: "Elfe Lunaire", img: "17A82317-D4D1-4DA4-B9B4-BCB95BAB06B2.JPG" },
+            { name: "Moine", img: "1E415978-B5D5-403A-9819-67846375D310.JPG" },
+            { name: "Paladin", img: "4294499B-25DF-4469-82A2-3F8D53901EBB.JPG" },
+            { name: "Ninja", img: "5794F88B-030A-4769-8480-3FA32444CA6E.JPG" },
+            { name: "Voleur d'Ombre", img: "611AA158-06B5-4201-945D-F5EB7BFBB0CA.JPG" },
+            { name: "Pyromancienne", img: "74BB75FD-934E-44F5-B15D-BD8CE7BF6683.JPG" },
+            { name: "Tréant", img: "7F1035CD-D396-4B53-85A9-55592E1197EA.JPG" },
+            { name: "As de la Gâchette", img: "85C36BD8-841F-4620-B217-2E85A3CE68AE.JPG" },
+            { name: "Samouraï", img: "90F48CD8-4884-4EE7-A886-137D180F3BE1.JPG" },
+            { name: "Tactitienne", img: "96D1A96A-44CB-473B-A6DB-05E265154CFC.JPG" },
+            { name: "Chasseresse", img: "A15D35B9-E745-410F-9555-B844FD979644.JPG" },
+            { name: "Maudit", img: "A4B2CCDA-D805-43E9-8BFD-59FE9BC55372.JPG" },
+            { name: "Artificier", img: "A58EDC87-1702-46DD-9007-4F28F27F5F44.JPG" },
+            { name: "Vampire", img: "B27D0825-6B07-433E-A88C-9255D7FF4CCF.JPG" },
+            { name: "Serafina", img: "BBDACCBE-3E24-42FA-A01C-B85CA2A20363.JPG" }
+            // Ajoute les autres si nécessaire
+        ];
+
+        function displayHeroes(list) {
+            const grid = document.getElementById('heroGrid');
+            grid.innerHTML = '';
+            list.forEach((hero, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${repoBase + hero.img}" alt="${hero.name}">
+                    <div class="card-name">${hero.name}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterHeroes() {
+            const term = document.getElementById('search').value.toLowerCase();
+            const filtered = heroes.filter(h => h.name.toLowerCase().includes(term));
+            displayHeroes(filtered);
+        }
+
+        function pickRandom() {
+            const cards = document.querySelectorAll('.card');
+            let counter = 0;
+            const interval = setInterval(() => {
+                cards.forEach(c => c.classList.remove('selected'));
+                const randomIdx = Math.floor(Math.random() * cards.length);
+                cards[randomIdx].classList.add('selected');
+                counter++;
+                if (counter > 20) {
+                    clearInterval(interval);
+                    const finalHero = heroes[Math.floor(Math.random() * heroes.length)];
+                    showWinner(finalHero);
+                }
+            }, 100);
+        }
+
+        function showWinner(hero) {
+            setTimeout(() => {
+                document.getElementById('winner-img').src = repoBase + hero.img;
+                document.getElementById('winner-name').innerText = hero.name;
+                document.getElementById('result-overlay').style.display = 'flex';
+            }, 500);
+        }
+
+        displayHeroes(heroes);
+    </script>
+</body>
+</html>
